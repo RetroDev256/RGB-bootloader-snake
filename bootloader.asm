@@ -53,20 +53,20 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 
 .game_start:
 	xor bx, bx
-.clear_buffer_loop:		; Clear screen buffer
+.clear_buffer_loop:		; Clear screen buffer 
 	xor di, di
 	mov ax, bx
 	shr ax, 1
 	mov si, 0x28
 	xor dx, dx
 	div si		;ax holds row, dx holds column
-	cmp ax, 0
+	cmp al, 0
 	je .wall
-	cmp ax, 24
+	cmp al, 24
 	je .wall
-	cmp dx, 0
+	cmp dl, 0
 	je .wall
-	cmp dx, 39
+	cmp dl, 39
 	je .wall
 	jmp .empty_space
 .wall:
@@ -78,7 +78,7 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 	cmp bx, 0x7D0
 	jl .clear_buffer_loop
 
-	mov [0xFA01], word 1000	; Snake starts in the middle of the screen
+	mov [0xFA01], word 0x3E8	; Snake starts in the middle of the screen
 	mov [0xFA03], word 65	; Snake starts with a length of two
 	call place_food
 .game_loop:
@@ -100,7 +100,7 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 	mul si
 	add ax, di
 	shl ax, 1
-	mov dx, [eax + 0x9F830]; TODO: make color loop
+	mov dx, [eax + 0x9F830]
 	cmp dx, 64
 	jl .dbb_static_color
 	mov ax, dx
@@ -128,8 +128,7 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 	cmp ax, 0x7D0
 	jne .decay_snake
 
-	mov cx, 2
-	xor dx, dx	; Sleep for 1/8 second
+	mov cl, 2	; Sleep for 1/8 second, neglect setting dx, due to constant value.
 	mov ah, 0x86
 	int 0x15
 
@@ -137,7 +136,7 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 	mov ah, 0x01     ; Any key pressed?
     int 0x16
     jz .nokey        ; No, go to main loop
-    xor ax, ax
+    xor ah, ah
     int 0x16        ; Get key
 	cmp ah, 0x48
 	jne .nu_key
@@ -147,26 +146,25 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 .nu_key:
 	cmp ah, 0x50
 	jne .nd_key
-	cmp byte [0xFA00], 3	; Snake must also not be going up
+	cmp [0xFA00], byte 3	; Snake must also not be going up
 	je .nr_key
 	mov [0xFA00], byte 1
 .nd_key:
 	cmp ah, 0x4D
 	jne .nr_key
-	cmp byte [0xFA00], 2	; Snake must also not be going left
+	cmp [0xFA00], byte 2	; Snake must also not be going left
 	je .nokey
 	mov [0xFA00], byte 0
 .nr_key:
 	cmp ah, 0x4B
 	jne .nokey
-	cmp byte [0xFA00], 0	; Snake must also not be going right
+	cmp [0xFA00], byte 0	; Snake must also not be going right
 	je .nokey
 	mov [0xFA00], byte 2
 .nokey:
 
 	mov ax, word [0xFA01]		; Get snake position
-	mov dl, byte [0xFA00]	; Get direction of snake, evaluate next position
-	cmp dl, 1
+	cmp [0xFA00], byte 1		; Get direction of snake, evaluate next position
 	jge .not_right
 	inc ax
 	inc ax
@@ -176,7 +174,7 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 	add ax, 0x50		; The snake is facing down
 	jmp .continue
 .not_down:
-	cmp dl, 2
+	cmp [0xFA00], byte 2
 	jne .not_left
 	dec ax
 	dec ax
@@ -187,36 +185,40 @@ setup_mode:				; Sets up 300x200 8 bd mode, and a custom palette!
 	mov [0xFA01], word ax
 	cmp [eax + 0x9F830], word 48	; Block must be food
 	jne .no_food
-	mov ax, [0xFA03]
-	inc ax							; Increase length of snake
-	mov [0xFA03], ax
+	inc word [0xFA03]				; Increase length of snake
 	call place_food
 	jmp .game_loop					; Skip death evaluation, because the block is food.
 .no_food:				; The block which the snake advances to is not food
 	mov ax, word [0xFA01]			; Evaluate any Death
 	cmp [eax + 0x9F830], word 0	;	 Block must be empty
-	jnz .game_start
-	jmp .game_loop
+	jz .game_loop
+.death:
+
+	mov cl, 10	; Sleep for ~1 seconds, to emphasize death.
+	mov ah, 0x86
+	int 0x15
+
+	jmp .game_start
 
 place_food:
 	xor ah, ah ; interrupts to get system time
 	int 0x1A ; CX:DX now hold number of clock ticks since midnight
+	rol dx, 3	; increase importance of LSB, resulting in better PRNG
 .loop:
-	inc ax	; increase ax
 	inc ax
-	cmp ax, 1920	;if ax is over the limit, zero ax
+	inc ax
+	cmp ax, 2000		; Roll over, to prevent placing food outside of game
 	jl .ax_not_overflown
 	xor ax, ax
 .ax_not_overflown:
-	cmp dx, 0
-	jz .dx_zero
-	dec dx	; decrement dx
-	jmp .loop
-.dx_zero:
-	cmp [eax + 0x9F830], word 0
+	cmp [eax + 0x9F830], word 0		; Only decrement dx and check for placement if empty cell
 	jnz .loop
-	mov [eax + 0x9F830], word 48
-	ret
+	dec dx
+	cmp dx, 0
+	jnz .loop						; Only decrement dx if empty cell, and if zero,
+	mov [eax + 0x9F830], word 48	; Place food.
+	ret								; This is where the game will halt, if you happen to win.
+
 set_palette_value:
 	mov ax, 0x1007
 	int 0x10
