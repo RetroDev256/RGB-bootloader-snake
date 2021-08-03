@@ -5,6 +5,7 @@
   To build the game, navigate to the source directory and run `make` to compile. The output file will be bootable, which means it can be flashed to disk, or opened with qemu (provided it is installed and in the PATH), using `make run`.
 
   To play the game:
+
     - Use the Arrow Keys
     - Don't run into your tail
     - Don't run into the wall
