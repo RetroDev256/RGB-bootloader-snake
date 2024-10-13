@@ -15,4 +15,4 @@
   The program was developed for mode 0x13, under an x86 PC. Source code and a release is included, where both are released under license.
 
 Here's me playing the game under qemu:
-https://github.com/user-attachments/assets/42bf5180-c589-4516-b104-ff5bee885a5f
+[RGB-bootloader-snake demo](https://github.com/user-attachments/assets/42bf5180-c589-4516-b104-ff5bee885a5f)
